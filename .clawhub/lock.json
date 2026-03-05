@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "openclaw-skill-vetter": {
+      "version": "1.0.0",
+      "installedAt": 1772586857705
+    },
+    "Qmd": {
+      "version": "1.0.0",
+      "installedAt": 1772587159621
+    },
+    "self-improving-agent": {
+      "version": "1.0.11",
+      "installedAt": 1772587369004
+    },
+    "Gog": {
+      "version": "1.0.0",
+      "installedAt": 1772587422554
+    },
+    "mem0": {
+      "version": "1.0.0",
+      "installedAt": 1772588191952
+    },
+    "openclaw-tavily-search": {
+      "version": "0.1.0",
+      "installedAt": 1772588297283
+    }
+  }
+}
