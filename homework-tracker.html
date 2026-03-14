@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>作业倒计时管理</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 { text-align: center; color: #333; }
+    .add-form {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .add-form input {
+      flex: 1;
+      min-width: 150px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .add-form input[type="number"] { width: 100px; flex: none; }
+    .add-form button {
+      padding: 10px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .add-form button:hover { background: #45a049; }
+    .homework-list {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .homework-item {
+      display: grid;
+      grid-template-columns: 40px 1fr auto auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 15px;
+      border-bottom: 1px solid #eee;
+      background: white;
+    }
+    .homework-item:last-child { border-bottom: none; }
+    .homework-item.running {
+      background: #e8f5e9;
+      border-left: 4px solid #4CAF50;
+    }
+    .drag-handle {
+      cursor: grab;
+      color: #999;
+      font-size: 20px;
+      text-align: center;
+    }
+    .homework-name {
+      font-size: 16px;
+      font-weight: 500;
+    }
+    .time-input {
+      width: 70px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .countdown {
+      font-size: 18px;
+      font-weight: bold;
+      color: #2196F3;
+      min-width: 80px;
+      text-align: center;
+    }
+    .countdown.ended { color: #f44336; }
+    .countdown.warning { color: #ff9800; }
+    .btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 2px;
+    }
+    .btn-start { background: #2196F3; color: white; }
+    .btn-start:hover { background: #1976D2; }
+    .btn-start.running { background: #ff9800; }
+    .btn-delete { background: #f44336; color: white; }
+    .btn-delete:hover { background: #d32f2f; }
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <h1>📚 作业倒计时管理</h1>
+  
+  <div class="add-form">
+    <input type="text" id="homeworkName" placeholder="作业名称（如：数学练习）">
+    <input type="number" id="homeworkTime" placeholder="分钟" min="1" value="30">
+    <button onclick="addHomework()">➕ 添加作业</button>
+  </div>
+
+  <div class="homework-list" id="homeworkList">
+    <div class="empty-state">暂无作业，点击上方添加</div>
+  </div>
+
+  <script>
+    let homeworks = JSON.parse(localStorage.getItem('homeworks') || '[]');
+    let timers = {};
+
+    function save() {
+      localStorage.setItem('homeworks', JSON.stringify(homeworks));
+    }
+
+    function render() {
+      const list = document.getElementById('homeworkList');
+      if (homeworks.length === 0) {
+        list.innerHTML = '<div class="empty-state">暂无作业，点击上方添加</div>';
+        return;
+      }
+      
+      list.innerHTML = homeworks.map((hw, index) => `
+        <div class="homework-item ${hw.running ? 'running' : ''}" data-index="${index}">
+          <div class="drag-handle" onmousedown="startDrag(event, ${index})">⋮⋮</div>
+          <div class="homework-name">${hw.name}</div>
+          <input type="number" class="time-input" value="${hw.minutes}" 
+                 onchange="updateTime(${index}, this.value)" min="1"> 分钟
+          <div class="countdown ${getCountdownClass(hw)}" id="timer-${index}">
+            ${formatTime(hw.remaining)}
+          </div>
+          <div>
+            <button class="btn btn-start ${hw.running ? 'running' : ''}" 
+                    onclick="toggleTimer(${index})">
+              ${hw.running ? '⏸ 暂停' : '▶ 开始'}
+            </button>
+            <button class="btn btn-delete" onclick="deleteHomework(${index})">🗑</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getCountdownClass(hw) {
+      if (hw.remaining <= 0) return 'ended';
+      if (hw.remaining <= 300) return 'warning';
+      return '';
+    }
+
+    function formatTime(seconds) {
+      if (seconds <= 0) return '已结束';
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function addHomework() {
+      const name = document.getElementById('homeworkName').value.trim();
+      const minutes = parseInt(document.getElementById('homeworkTime').value) || 30;
+      
+      if (!name) {
+        alert('请输入作业名称');
+        return;
+      }
+
+      homeworks.push({
+        name,
+        minutes,
+        remaining: minutes * 60,
+        running: false
+      });
+      
+      document.getElementById('homeworkName').value = '';
+      save();
+      render();
+    }
+
+    function updateTime(index, minutes) {
+      homeworks[index].minutes = parseInt(minutes) || 1;
+      if (!homeworks[index].running) {
+        homeworks[index].remaining = homeworks[index].minutes * 60;
+      }
+      save();
+      render();
+    }
+
+    function toggleTimer(index) {
+      const hw = homeworks[index];
+      if (hw.running) {
+        hw.running = false;
+        clearInterval(timers[index]);
+        delete timers[index];
+      } else {
+        if (hw.remaining <= 0) {
+          hw.remaining = hw.minutes * 60;
+        }
+        hw.running = true;
+        timers[index] = setInterval(() => {
+          if (hw.remaining > 0) {
+            hw.remaining--;
+            document.getElementById(`timer-${index}`).textContent = formatTime(hw.remaining);
+            document.getElementById(`timer-${index}`).className = `countdown ${getCountdownClass(hw)}`;
+            save();
+          } else {
+            clearInterval(timers[index]);
+            hw.running = false;
+            delete timers[index];
+            render();
+          }
+        }, 1000);
+      }
+      save();
+      render();
+    }
+
+    function deleteHomework(index) {
+      if (homeworks[index].running) {
+        clearInterval(timers[index]);
+        delete timers[index];
+      }
+      homeworks.splice(index, 1);
+      save();
+      render();
+    }
+
+    // 拖拽排序
+    let draggedIndex = null;
+
+    function startDrag(e, index) {
+      draggedIndex = index;
+      document.addEventListener('mousemove', doDrag);
+      document.addEventListener('mouseup', endDrag);
+    }
+
+    function doDrag(e) {
+      if (draggedIndex === null) return;
+      const items = document.querySelectorAll('.homework-item');
+      items.forEach((item, i) => {
+        const rect = item.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom && i !== draggedIndex) {
+          if (i > draggedIndex) {
+            homeworks.splice(i + 1, 0, homeworks.splice(draggedIndex, 1)[0]);
+          } else {
+            homeworks.splice(i, 0, homeworks.splice(draggedIndex, 1)[0]);
+          }
+          draggedIndex = i;
+          save();
+          render();
+          return;
+        }
+      });
+    }
+
+    function endDrag() {
+      draggedIndex = null;
+      document.removeEventListener('mousemove', doDrag);
+      document.removeEventListener('mouseup', endDrag);
+    }
+
+    render();
+  </script>
+</body>
+</html>
